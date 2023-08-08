@@ -7,9 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.io.FileUtils;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.JenkinsRule;
@@ -24,55 +22,76 @@ public class ContentReplaceBuilderTest {
 
     private final String fileEncoding = "UTF-8";
     private final String lineSeparator = "Unix";
-	private final String content = "Version=0.0.0";
-	private File file;
-	private List<FileContentReplaceConfig> configs;
+    private final String content = "Version=0.0.0";
 
-    @Before
-    public void init() throws IOException {
-    	file = new File(getClass().getResource(".").getPath() + "tmp.txt");
-    	configs = new ArrayList<>();
-    	List<FileContentReplaceItemConfig> cfgs = new ArrayList<>();
-		FileContentReplaceItemConfig cfg = new FileContentReplaceItemConfig();
-		cfg.setSearch("(Version=)\\d+.\\d+.\\d+");
-		cfg.setReplace("$11.0.${BUILD_ID}");
-		cfg.setMatchCount(0);
-		cfg.setVerbose(true);
-		cfgs.add(cfg);
-    	FileUtils.write(file, content, Charset.forName(fileEncoding));
-    	FileContentReplaceConfig config = new FileContentReplaceConfig(file.getAbsolutePath(), fileEncoding, cfgs);
-    	config.setLineSeparator(lineSeparator);
-    	configs.add(config);
-    }
-
-    @After
-    public void clean() throws IOException {
-    	FileUtils.forceDelete(file);
+    private List<FileContentReplaceConfig> buildConfigurations(
+            String filePath, String search, String replace) throws IOException {
+        List<FileContentReplaceConfig> configs = new ArrayList<>();
+        List<FileContentReplaceItemConfig> cfgs = new ArrayList<>();
+        FileContentReplaceItemConfig cfg = new FileContentReplaceItemConfig();
+        cfg.setSearch(search);
+        cfg.setReplace(replace);
+        cfg.setMatchCount(0);
+        cfg.setVerbose(true);
+        cfgs.add(cfg);
+        FileContentReplaceConfig config = new FileContentReplaceConfig(filePath, fileEncoding, cfgs);
+        config.setLineSeparator(lineSeparator);
+        configs.add(config);
+        return configs;
     }
 
     @Test
     public void testBuild() throws Exception {
+        final String searchString = "(Version=)\\d+.\\d+.\\d+";
+        final String replaceString = "$11.0.${BUILD_ID}";
+
+        File file = File.createTempFile(fileEncoding, content);
+        FileUtils.write(file, content, Charset.forName(fileEncoding));
+        List<FileContentReplaceConfig> configs = buildConfigurations(
+                file.getAbsolutePath(), searchString, replaceString);
+
         FreeStyleProject project = jenkins.createFreeStyleProject();
         ContentReplaceBuilder builder = new ContentReplaceBuilder(configs);
         project.getBuildersList().add(builder);
 
         FreeStyleBuild build = jenkins.buildAndAssertSuccess(project);
-        jenkins.assertLogContains("   > replace times: 1, [(Version=)\\d+.\\d+.\\d+] => [$11.0." + build.getNumber() + "]", build);
-        Assert.assertEquals(FileUtils.readFileToString(file, Charset.forName(fileEncoding)), "Version=1.0." + build.getNumber());
+        String logMessage = "   > replace times: 1, [" + searchString + "] => [$11.0." + build.getNumber() + "]";
+        jenkins.assertLogContains(logMessage, build);
+
+        Assert.assertEquals(FileUtils.readFileToString(file,
+                Charset.forName(fileEncoding)),
+                "Version=1.0." + build.getNumber());
+
+        file.delete();
     }
 
     @Test
     public void testBuildQuiet() throws Exception {
+        final String searchString = "(Version=)\\d+.\\d+.\\d+";
+        final String replaceString = "$11.0.${BUILD_ID}";
+
+        File file = File.createTempFile(fileEncoding, content);
+        FileUtils.write(file, content, Charset.forName(fileEncoding));
+        List<FileContentReplaceConfig> configs = buildConfigurations(
+                file.getAbsolutePath(), searchString, replaceString);
+
         configs.get(0).getConfigs().get(0).setVerbose(false);
+
         FreeStyleProject project = jenkins.createFreeStyleProject();
         ContentReplaceBuilder builder = new ContentReplaceBuilder(configs);
         project.getBuildersList().add(builder);
 
         FreeStyleBuild build = jenkins.buildAndAssertSuccess(project);
-        jenkins.assertLogNotContains("   > replace : [Version=0.0.0] => [Version=1.0." + build.getNumber() + "]", build);
-		jenkins.assertLogNotContains(
-				"   > replace times: 1, [(Version=)\\d+.\\d+.\\d+] => [$11.0." + build.getNumber() + "]", build);
-        Assert.assertEquals(FileUtils.readFileToString(file, Charset.forName(fileEncoding)), "Version=1.0." + build.getNumber());
+        String logMessage = "   > replace : [Version=0.0.0] => [Version=1.0." + build.getNumber() + "]";
+        jenkins.assertLogNotContains(logMessage, build);
+        logMessage = "   > replace times: 1, [" + searchString + "] => [$11.0." + build.getNumber() + "]";
+        jenkins.assertLogNotContains(logMessage, build);
+
+        Assert.assertEquals(FileUtils.readFileToString(file,
+                Charset.forName(fileEncoding)),
+                "Version=1.0." + build.getNumber());
+
+        file.delete();
     }
 
 }
