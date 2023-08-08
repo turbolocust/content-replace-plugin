@@ -22,9 +22,9 @@ public class ContentReplaceBuilderTest {
     @Rule
     public JenkinsRule jenkins = new JenkinsRule();
 
-    private String fileEncoding = "UTF-8";
-    private String lineSeparator = "Unix";
-	private String content = "Version=0.0.0";
+    private final String fileEncoding = "UTF-8";
+    private final String lineSeparator = "Unix";
+	private final String content = "Version=0.0.0";
 	private File file;
 	private List<FileContentReplaceConfig> configs;
 
